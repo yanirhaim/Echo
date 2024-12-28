@@ -3,6 +3,8 @@ import os
 import assemblyai as aai
 from dotenv import load_dotenv
 
+from tools.text_translation import translate
+
 class RealTimeTranscriber:
     def __init__(self, sample_rate=16_000):
         self.sample_rate = sample_rate
@@ -27,6 +29,9 @@ class RealTimeTranscriber:
 
         if isinstance(transcript, aai.RealtimeFinalTranscript):
             print(transcript.text, end="\r\n")
+            print("Translating:...")
+            translation = translate(transcript.text, language="Afrikaans")
+            print(f"Translation: {translation}")
         else:
             print(transcript.text, end="\r")
 

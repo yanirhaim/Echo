@@ -1,6 +1,5 @@
 from tools.real_time_transcript import RealTimeTranscriber
 
-
 def main():
     transcriber = RealTimeTranscriber()
     try:
