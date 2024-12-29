@@ -8,14 +8,16 @@ const stopButton = document.getElementById('stopButton');
 const clearButton = document.getElementById('clearButton');
 const transcriptContainer = document.getElementById('transcript-container');
 
-// Helper function to create timestamp
+console.log('Script loaded'); // Debug log
+
 function getTimestamp() {
     const now = new Date();
     return now.toLocaleTimeString();
 }
 
-// Helper function to create a new transcript entry
 function createTranscriptEntry(text, isPartial = false) {
+    console.log('Creating transcript entry:', { text, isPartial }); // Debug log
+    
     const entry = document.createElement('div');
     entry.className = `transcript-entry ${isPartial ? 'partial' : ''}`;
     
@@ -35,37 +37,48 @@ function createTranscriptEntry(text, isPartial = false) {
 
     entry.appendChild(timestamp);
     entry.appendChild(transcriptText);
-
+    
+    console.log('Created entry with ID:', entry.id); // Debug log
     return entry;
 }
 
-// Helper function to update or add translation
 function addTranslation(transcriptId, translationText) {
+    console.log('Adding translation:', { transcriptId, translationText }); // Debug log
+    
     const transcriptEntry = document.getElementById(transcriptId);
     if (transcriptEntry) {
+        console.log('Found transcript entry');
         let translationDiv = transcriptEntry.querySelector('.translation-text');
         if (!translationDiv) {
+            console.log('Creating new translation div');
             translationDiv = document.createElement('div');
             translationDiv.className = 'translation-text';
             transcriptEntry.appendChild(translationDiv);
         }
         translationDiv.textContent = translationText;
+        console.log('Translation added successfully');
+    } else {
+        console.warn('Transcript entry not found:', transcriptId);
     }
 }
 
-// Helper function to update partial transcript
 function updatePartialTranscript(text) {
+    console.log('Updating partial transcript:', text); // Debug log
+    
     let partialEntry = document.getElementById('partial-transcript');
     if (!partialEntry) {
+        console.log('Creating new partial entry');
         partialEntry = createTranscriptEntry(text, true);
         transcriptContainer.insertBefore(partialEntry, transcriptContainer.firstChild);
     } else {
+        console.log('Updating existing partial entry');
         partialEntry.querySelector('.transcript-text').textContent = `${text}...`;
     }
 }
 
-// Helper function to finalize transcript
 function finalizeTranscript(text) {
+    console.log('Finalizing transcript:', text); // Debug log
+    
     const partialEntry = document.getElementById('partial-transcript');
     if (partialEntry) {
         partialEntry.remove();
@@ -73,22 +86,40 @@ function finalizeTranscript(text) {
 
     const finalEntry = createTranscriptEntry(text, false);
     window.currentTranscriptId = finalEntry.id;
+    console.log('Set current transcript ID:', window.currentTranscriptId); // Debug log
     transcriptContainer.insertBefore(finalEntry, transcriptContainer.firstChild);
     transcriptContainer.scrollTop = 0;
 }
 
-async function initAudioWorklet() {
-    try {
-        audioContext = new AudioContext({ sampleRate: 16000 });
-        await audioContext.audioWorklet.addModule('/static/audio-processor.worklet.js');
-        return true;
-    } catch (error) {
-        console.error('Error initializing audio worklet:', error);
-        return false;
+window.handleTranscriptMessage = function(data) {
+    console.log('Received WebSocket message:', data); // Debug log
+    
+    switch(data.type) {
+        case 'partial':
+            console.log('Processing partial transcript');
+            updatePartialTranscript(data.text);
+            break;
+        case 'final':
+            console.log('Processing final transcript');
+            finalizeTranscript(data.text);
+            break;
+        case 'translation':
+            console.log('Processing translation');
+            if (window.currentTranscriptId) {
+                console.log('Current transcript ID:', window.currentTranscriptId);
+                addTranslation(window.currentTranscriptId, data.text);
+            } else {
+                console.warn('No current transcript ID found');
+            }
+            break;
+        default:
+            console.log('Unhandled message type:', data.type);
     }
-}
+};
 
 async function startRecording() {
+    console.log('Starting recording...'); // Debug log
+    
     try {
         if (!window.roomManager || !window.roomManager.isHost) {
             console.error('Must be a room host to record');
@@ -118,6 +149,8 @@ async function startRecording() {
         startButton.disabled = true;
         stopButton.disabled = false;
         
+        console.log('Recording started successfully'); // Debug log
+        
     } catch (error) {
         console.error('Error starting recording:', error);
         stopRecording();
@@ -125,6 +158,8 @@ async function startRecording() {
 }
 
 function stopRecording() {
+    console.log('Stopping recording...'); // Debug log
+    
     if (audioStream) {
         audioStream.getTracks().forEach(track => track.stop());
     }
@@ -140,52 +175,53 @@ function stopRecording() {
     startButton.disabled = false;
     stopButton.disabled = true;
     audioStream = null;
+    
+    console.log('Recording stopped'); // Debug log
 }
 
 function clearTranscripts() {
+    console.log('Clearing transcripts'); // Debug log
     transcriptContainer.innerHTML = '';
     window.currentTranscriptId = null;
 }
 
-// Handle WebSocket messages for transcripts and translations
-window.handleTranscriptMessage = function(data) {
-    switch(data.type) {
-        case 'partial':
-            updatePartialTranscript(data.text);
-            break;
-        case 'final':
-            finalizeTranscript(data.text);
-            break;
-        case 'translation':
-            if (window.currentTranscriptId) {
-                addTranslation(window.currentTranscriptId, data.text);
-            }
-            break;
+async function initAudioWorklet() {
+    console.log('Initializing audio worklet...'); // Debug log
+    try {
+        audioContext = new AudioContext({ sampleRate: 16000 });
+        await audioContext.audioWorklet.addModule('/static/audio-processor.worklet.js');
+        console.log('Audio worklet initialized successfully'); // Debug log
+        return true;
+    } catch (error) {
+        console.error('Error initializing audio worklet:', error);
+        return false;
     }
-};
-
-// Only show recording controls for host
-function updateControlsVisibility() {
-    const isHost = window.roomManager?.isHost || false;
-    startButton.style.display = isHost ? 'inline-block' : 'none';
-    stopButton.style.display = isHost ? 'inline-block' : 'none';
 }
 
 startButton.onclick = startRecording;
 stopButton.onclick = stopRecording;
 clearButton.onclick = clearTranscripts;
 
-// Update controls visibility when room manager loads or room status changes
 document.addEventListener('DOMContentLoaded', () => {
-    // Initial visibility update
+    console.log('DOM loaded, initializing controls visibility'); // Debug log
     updateControlsVisibility();
-
-    // Create a MutationObserver to watch for changes in room status
+    
+    const roomStatus = document.getElementById('roomStatus');
     const roomStatusObserver = new MutationObserver(() => {
+        console.log('Room status changed, updating controls'); // Debug log
         updateControlsVisibility();
     });
-
-    // Start observing room status element
-    const roomStatus = document.getElementById('roomStatus');
-    roomStatusObserver.observe(roomStatus, { childList: true, characterData: true, subtree: true });
+    
+    roomStatusObserver.observe(roomStatus, { 
+        childList: true, 
+        characterData: true, 
+        subtree: true 
+    });
 });
+
+function updateControlsVisibility() {
+    const isHost = window.roomManager?.isHost || false;
+    console.log('Updating controls visibility. Is host:', isHost); // Debug log
+    startButton.style.display = isHost ? 'inline-block' : 'none';
+    stopButton.style.display = isHost ? 'inline-block' : 'none';
+}

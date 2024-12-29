@@ -21,6 +21,8 @@ class RealTimeTranscriber:
         self.is_running = True
         self.loop = asyncio.get_event_loop()
         self._setup_transcriber()
+        self.user_languages = {}  # Dictionary to store user language preferences
+        print("RealTimeTranscriber initialized")  # Debug log
         
     def _initialize_api(self):
         """Initialize AssemblyAI API with key from environment variables."""
@@ -45,6 +47,24 @@ class RealTimeTranscriber:
         except Exception as e:
             print(f"Error sending message: {e}")
 
+    async def set_user_language(self, user_id: str, language: str):
+        """Set the language preference for a specific user."""
+        print(f"Setting language {language} for user {user_id}")  # Debug log
+        self.user_languages[user_id] = language
+        # Send confirmation to the user
+        try:
+            await self.connection_manager.send_to_user(
+                user_id,
+                {
+                    "type": "language_confirmed",
+                    "language": language,
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+            print(f"Language confirmation sent to user {user_id}")  # Debug log
+        except Exception as e:
+            print(f"Error sending language confirmation: {e}")
+        
     def _on_data(self, transcript: aai.RealtimeTranscript):
         """Callback when transcript data is received."""
         if not transcript.text:
@@ -56,49 +76,48 @@ class RealTimeTranscriber:
         )
 
     async def _handle_transcript(self, transcript: aai.RealtimeTranscript):
-        """Handle incoming transcript data asynchronously."""
         try:
             if isinstance(transcript, aai.RealtimeFinalTranscript):
-                # Send final transcript
+                print(f"Processing final transcript: {transcript.text}")  # Debug log
+                
+                # Send final transcript to all users
                 await self._send_message(
                     "final",
                     transcript.text,
                     {"confidence": transcript.confidence}
                 )
                 
-                try:
-                    # Get and send translation
-                    translation = await translate(transcript.text, language="Afrikaans")
-                    if translation:
-                        await self._send_message(
-                            "translation",
-                            translation,
-                            {"original_text": transcript.text}
-                        )
-                    else:
-                        await self._send_message(
-                            "error",
-                            "Translation failed: No response received"
-                        )
-                except Exception as e:
-                    print(f"Translation error: {e}")
-                    await self._send_message(
-                        "error",
-                        f"Translation error: {str(e)}"
-                    )
+                # Process translations for each user
+                for user_id, language in self.user_languages.items():
+                    try:
+                        print(f"Translating for user {user_id} to {language}")  # Debug log
+                        translation = await translate(transcript.text, language=language)
+                        
+                        if translation:
+                            print(f"Translation received: {translation}")  # Debug log
+                            await self.connection_manager.send_to_user(
+                                user_id,
+                                {
+                                    "type": "translation",
+                                    "text": translation,
+                                    "original_text": transcript.text,
+                                    "language": language,
+                                    "timestamp": datetime.now().isoformat()
+                                }
+                            )
+                        else:
+                            print(f"No translation received for user {user_id}")  # Debug log
+                    except Exception as e:
+                        print(f"Translation error for user {user_id}: {e}")  # Debug log
             else:
-                # Send partial transcript
+                # Handle partial transcript
                 await self._send_message(
                     "partial",
                     transcript.text,
                     {"is_final": False}
                 )
         except Exception as e:
-            print(f"Error handling transcript: {e}")
-            await self._send_message(
-                "error",
-                f"Transcript handling error: {str(e)}"
-            )
+            print(f"Error in _handle_transcript: {e}")
 
     def _on_error(self, error: aai.RealtimeError):
         """Callback when an error occurs."""

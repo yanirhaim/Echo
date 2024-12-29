@@ -6,54 +6,44 @@ class RoomManager {
         this.roomCode = null;
         this.isHost = false;
         this.socket = null;
-        
-        // Initialize UI elements
+        this.userLanguage = null;
+        this.supportedLanguages = [
+            { code: 'af', name: 'Afrikaans' },
+            { code: 'ar', name: 'Arabic' },
+            { code: 'zh', name: 'Chinese' },
+            { code: 'nl', name: 'Dutch' },
+            { code: 'en', name: 'English' },
+            { code: 'fr', name: 'French' },
+            { code: 'de', name: 'German' },
+            { code: 'hi', name: 'Hindi' },
+            { code: 'id', name: 'Indonesian' },
+            { code: 'it', name: 'Italian' },
+            { code: 'ja', name: 'Japanese' },
+            { code: 'ko', name: 'Korean' },
+            { code: 'pt', name: 'Portuguese' },
+            { code: 'ru', name: 'Russian' },
+            { code: 'es', name: 'Spanish' },
+            { code: 'sw', name: 'Swahili' },
+            { code: 'tr', name: 'Turkish' },
+            { code: 'vi', name: 'Vietnamese' }
+        ];
+        this.pendingLanguage = null;
         this.initializeUI();
         this.attachEventListeners();
     }
-    
+
     initializeUI() {
-        // Create room management container
-        const container = document.createElement('div');
-        container.className = 'room-management';
-        container.innerHTML = `
-            <div class="room-controls">
-                <div id="roomStatus" class="status disconnected">Not in a room</div>
-                <div class="button-group">
-                    <button id="createRoomBtn" class="primary-button">Create Room</button>
-                    <button id="joinRoomBtn" class="primary-button">Join Room</button>
-                </div>
-                <div id="joinRoomForm" class="hidden">
-                    <input type="text" id="roomCodeInput" 
-                           placeholder="Enter 5-letter room code"
-                           maxlength="5"
-                           pattern="[A-Z]{5}">
-                    <button id="submitJoinBtn">Join</button>
-                </div>
-                <div id="roomInfo" class="hidden">
-                    <div class="room-code">Room: <span id="currentRoomCode"></span></div>
-                    <div class="participant-count">Participants: <span id="participantCount">0</span></div>
-                    <button id="leaveRoomBtn" class="secondary-button">Leave Room</button>
-                </div>
-            </div>
-        `;
-        
-        // Insert before the transcript container
-        const transcriptContainer = document.getElementById('transcript-container');
-        transcriptContainer.parentNode.insertBefore(container, transcriptContainer);
+        this.updateRoomUI();
+        this.updateLanguageUI();
     }
-    
+
     attachEventListeners() {
-        // Create room button
         document.getElementById('createRoomBtn').onclick = () => this.createRoom();
         
-        // Join room button shows the join form
         document.getElementById('joinRoomBtn').onclick = () => {
-            const form = document.getElementById('joinRoomForm');
-            form.classList.toggle('hidden');
+            document.getElementById('joinRoomForm').classList.toggle('hidden');
         };
         
-        // Submit join room form
         document.getElementById('submitJoinBtn').onclick = () => {
             const codeInput = document.getElementById('roomCodeInput');
             const code = codeInput.value.toUpperCase();
@@ -63,15 +53,37 @@ class RoomManager {
             }
         };
         
-        // Leave room button
         document.getElementById('leaveRoomBtn').onclick = () => this.leaveRoom();
         
-        // Format room code input to uppercase
+        document.getElementById('confirmLanguageBtn').onclick = () => {
+            const select = document.getElementById('languageSelect');
+            this.setUserLanguage(select.value);
+            document.querySelector('.language-selection').classList.add('hidden');
+            this.completeRoomJoin();
+        };
+
+        const changeLanguageBtn = document.getElementById('changeLanguageBtn');
+        if (changeLanguageBtn) {
+            changeLanguageBtn.onclick = () => {
+                document.querySelector('.language-selection').classList.remove('hidden');
+            };
+        }
+
         document.getElementById('roomCodeInput').addEventListener('input', (e) => {
             e.target.value = e.target.value.toUpperCase();
         });
+
+        // Update language selection event listener
+        document.getElementById('confirmLanguageBtn').onclick = () => {
+            const select = document.getElementById('languageSelect');
+            const languageCode = select.value;
+            document.querySelector('.language-selection').classList.add('hidden');
+            
+            // First connect WebSocket, then set language
+            this.completeRoomJoin(languageCode);
+        };
     }
-    
+
     async createRoom() {
         try {
             const response = await fetch(`/api/rooms/create/${this.userId}`, {
@@ -86,9 +98,7 @@ class RoomManager {
             this.roomCode = data.room_code;
             this.isHost = true;
             
-            // Update UI
             this.updateRoomUI();
-            // Connect WebSocket
             this.connectWebSocket();
             
         } catch (error) {
@@ -96,7 +106,7 @@ class RoomManager {
             this.showError('Failed to create room');
         }
     }
-    
+
     async joinRoom(roomCode) {
         try {
             const response = await fetch(`/api/rooms/join/${roomCode}/${this.userId}`, {
@@ -111,40 +121,86 @@ class RoomManager {
             this.roomCode = data.room_code;
             this.isHost = false;
             
-            // Update UI
-            this.updateRoomUI();
-            // Connect WebSocket
-            this.connectWebSocket();
+            // Show language selection before completing room join
+            if (!this.isHost) {
+                document.querySelector('.language-selection').classList.remove('hidden');
+            } else {
+                this.completeRoomJoin();
+            }
             
         } catch (error) {
             console.error('Error joining room:', error);
             this.showError('Failed to join room');
         }
     }
-    
+
     leaveRoom() {
         if (this.socket) {
             this.socket.close();
         }
         this.roomCode = null;
         this.isHost = false;
+        this.userLanguage = null;
         this.updateRoomUI();
+        this.updateLanguageUI();
     }
-    
+
+    setUserLanguage(languageCode) {
+        console.log('Setting user language to:', languageCode);
+        this.userLanguage = languageCode;
+        this.updateLanguageUI();
+        
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            console.log('Socket ready, sending language preference');
+            const message = {
+                type: 'language_preference',
+                language: languageCode
+            };
+            console.log('Sending message:', message);
+            this.socket.send(JSON.stringify(message));
+        } else {
+            console.error('Socket not ready:', {
+                exists: !!this.socket,
+                readyState: this.socket?.readyState
+            });
+        }
+    }
+
+    updateLanguageUI() {
+        const currentLanguageInfo = document.getElementById('currentLanguageInfo');
+        const currentLanguageDisplay = document.getElementById('currentLanguageDisplay');
+        
+        if (this.userLanguage && !this.isHost) {
+            const language = this.supportedLanguages.find(l => l.code === this.userLanguage);
+            if (language) {
+                currentLanguageDisplay.textContent = language.name;
+                currentLanguageInfo.classList.remove('hidden');
+            }
+        } else {
+            currentLanguageInfo.classList.add('hidden');
+        }
+    }
+
     connectWebSocket() {
+        console.log('Connecting WebSocket...');
         this.socket = new WebSocket(`ws://${window.location.host}/ws/${this.userId}`);
         
         this.socket.onopen = () => {
+            console.log('WebSocket connected');
             this.updateStatus('Connected');
             if (!this.isHost) {
-                // Start ping-pong for guests
                 this.startPingPong();
+                // If we have a pending language preference, send it now
+                if (this.userLanguage) {
+                    console.log('Sending pending language preference');
+                    this.setUserLanguage(this.userLanguage);
+                }
             }
         };
         
         this.socket.onclose = () => {
+            console.log('WebSocket disconnected');
             this.updateStatus('Disconnected');
-            // Clear ping-pong interval if it exists
             if (this.pingInterval) {
                 clearInterval(this.pingInterval);
             }
@@ -152,47 +208,74 @@ class RoomManager {
         
         this.socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
+            console.log('Received WebSocket message:', data);
             this.handleWebSocketMessage(data);
         };
     }
-    
+
     startPingPong() {
-        // Send ping every 30 seconds to keep connection alive
         this.pingInterval = setInterval(() => {
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({ type: 'ping' }));
             }
         }, 30000);
     }
-    
+
     handleWebSocketMessage(data) {
+        console.log('Handling WebSocket message:', data);
         switch (data.type) {
             case 'host_status':
+                console.log('Received host status update');
                 this.updateStatus(`Host ${data.status}`);
                 break;
             case 'user_left':
+                console.log('User left event received');
                 this.handleUserLeft(data);
                 break;
             case 'participant_count':
+                console.log('Updating participant count:', data.count);
                 this.updateParticipantCount(data.count);
                 break;
-            // Handle other message types (transcripts, translations, etc.)
+            case 'language_confirmed':
+                console.log('Language preference confirmed:', data);
+                this.showLanguageConfirmation(data.language);
+                break;
+            case 'error':
+                console.error('Received error message:', data.text);
+                this.showError(data.text);
+                break;
+            case 'translation':
+                console.log('Translation received:', data);
+                if (window.handleTranscriptMessage) {
+                    window.handleTranscriptMessage(data);
+                }
+                break;
+            case 'final':
+            case 'partial':
+                console.log('Transcript message received:', data.type);
+                if (window.handleTranscriptMessage) {
+                    window.handleTranscriptMessage(data);
+                }
+                break;
             default:
-                // Forward to transcript handler if it exists
+                console.log('Forwarding message to transcript handler:', data.type);
                 if (window.handleTranscriptMessage) {
                     window.handleTranscriptMessage(data);
                 }
         }
     }
-    
+
     handleUserLeft(data) {
         if (data.user_id === this.userId) {
             this.leaveRoom();
-        } else {
-            this.updateParticipantCount(data.participant_count);
         }
     }
-    
+
+    showLanguageConfirmation(language) {
+        const languageName = this.supportedLanguages.find(l => l.code === language)?.name || language;
+        this.showNotification(`Language set to: ${languageName}`);
+    }
+
     updateRoomUI() {
         const roomInfo = document.getElementById('roomInfo');
         const createBtn = document.getElementById('createRoomBtn');
@@ -208,11 +291,8 @@ class RoomManager {
             joinForm.classList.add('hidden');
             currentRoomCode.textContent = this.roomCode;
             
-            // Show/hide recording controls based on host status
             if (this.isHost) {
                 recordingControls.classList.remove('hidden');
-                document.getElementById('startButton').disabled = false;
-                document.getElementById('stopButton').disabled = true;
             } else {
                 recordingControls.classList.add('hidden');
             }
@@ -224,21 +304,44 @@ class RoomManager {
             recordingControls.classList.add('hidden');
         }
     }
-    
+
     updateStatus(status) {
         const statusDiv = document.getElementById('roomStatus');
         statusDiv.textContent = status;
-        statusDiv.className = `status ${status.toLowerCase() === 'connected' ? 'connected' : 'disconnected'}`;
+        statusDiv.className = `status ${status.toLowerCase().includes('connected') ? 'connected' : 'disconnected'}`;
     }
-    
+
     updateParticipantCount(count) {
         document.getElementById('participantCount').textContent = count;
     }
-    
+
     showError(message) {
-        // Add error display logic here
         console.error(message);
-        alert(message);  // Replace with better UI feedback
+        this.showNotification(message, 'error');
+    }
+
+    showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+
+    async completeRoomJoin(languageCode = null) {
+        this.updateRoomUI();
+        
+        // Connect WebSocket first
+        await this.connectWebSocket();
+        
+        // Set language after WebSocket is connected
+        if (languageCode && !this.isHost) {
+            this.setUserLanguage(languageCode);
+        }
     }
 }
 
