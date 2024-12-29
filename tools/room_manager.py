@@ -1,8 +1,8 @@
-from dataclasses import dataclass
-from typing import Dict, Optional, Set
+from dataclasses import dataclass, field
+from typing import Dict, Optional, Set, Union
+from datetime import datetime, timedelta
 import random
 import string
-from datetime import datetime, timedelta
 
 @dataclass
 class Room:
@@ -13,6 +13,7 @@ class Room:
     guests: Set[str]
     max_participants: int = 50
     is_active: bool = True
+    user_last_active: Dict[str, datetime] = field(default_factory=dict)
 
 class RoomManager:
     """Manages room creation, joining, and state management."""
@@ -29,6 +30,40 @@ class RoomManager:
             # Ensure it's unique
             if code not in self._rooms:
                 return code
+
+    def cleanup_inactive_users(self, max_inactive_time: int = 5 * 60):  # 5 minutes
+        """Remove users who have been inactive for too long."""
+        current_time = datetime.now()
+        
+        for room_code, room in list(self._rooms.items()):
+            if not room.is_active:
+                continue
+            
+            # Check host
+            host_inactive = (
+                room.user_last_active.get(room.host_id, datetime.min) + 
+                timedelta(seconds=max_inactive_time) < current_time
+            )
+            
+            if host_inactive:
+                # If host is inactive, deactivate the entire room
+                room.is_active = False
+                for user in list(room.guests) + [room.host_id]:
+                    if user in self._user_to_room:
+                        del self._user_to_room[user]
+                continue
+            
+            # Check guests
+            for guest in list(room.guests):
+                guest_inactive = (
+                    room.user_last_active.get(guest, datetime.min) + 
+                    timedelta(seconds=max_inactive_time) < current_time
+                )
+                
+                if guest_inactive:
+                    room.guests.remove(guest)
+                    if guest in self._user_to_room:
+                        del self._user_to_room[guest]
     
     def create_room(self, host_id: str, max_participants: int = 50) -> Room:
         """Create a new room with the given host."""
@@ -64,6 +99,7 @@ class RoomManager:
             raise ValueError("Room is full")
             
         room.guests.add(user_id)
+        room.user_last_active[user_id] = datetime.now()
         self._user_to_room[user_id] = room_code
         return room
     
@@ -86,6 +122,9 @@ class RoomManager:
         else:
             # Remove guest from room
             room.guests.remove(user_id)
+            del self._user_to_room[user_id]
+        # Ensure user is removed from _user_to_room
+        if user_id in self._user_to_room:
             del self._user_to_room[user_id]
     
     def get_room(self, room_code: str) -> Optional[Room]:

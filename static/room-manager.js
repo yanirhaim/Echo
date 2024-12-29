@@ -30,6 +30,14 @@ class RoomManager {
         this.pendingLanguage = null;
         this.initializeUI();
         this.attachEventListeners();
+
+        // Extract room code from URL on initialization
+        const urlParams = new URLSearchParams(window.location.search);
+        this.roomCode = urlParams.get('room');
+        
+        // Determine if this is a host or participant view
+        this.isHost = window.location.pathname.includes('host.html');
+
     }
 
     initializeUI() {
@@ -57,9 +65,11 @@ class RoomManager {
         
         document.getElementById('confirmLanguageBtn').onclick = () => {
             const select = document.getElementById('languageSelect');
-            this.setUserLanguage(select.value);
+            const languageCode = select.value;
             document.querySelector('.language-selection').classList.add('hidden');
-            this.completeRoomJoin();
+            
+            // Simply call completeRoomJoin with language code
+            this.completeRoomJoin(languageCode);
         };
 
         const changeLanguageBtn = document.getElementById('changeLanguageBtn');
@@ -104,19 +114,31 @@ class RoomManager {
         }
     }
 
-    async joinRoom(roomCode) {
+    joinRoom(roomCode) {
         try {
-            const response = await fetch(`/api/rooms/join/${roomCode}/${this.userId}`, {
-                method: 'POST'
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to join room');
+            // Prevent multiple join attempts
+            if (this.roomCode) {
+                console.log('Already in a room, cannot join another');
+                return;
             }
-            
-            const data = await response.json();
-            // Redirect to participant view with room code
-            window.location.href = `/participant.html?room=${data.room_code}`;
+    
+            fetch(`/api/rooms/join/${roomCode}/${this.userId}`, {
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to join room');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Redirect to participant view with room code
+                window.location.href = `/participant.html?room=${data.room_code}`;
+            })
+            .catch(error => {
+                console.error('Error joining room:', error);
+                this.showError('Failed to join room');
+            });
             
         } catch (error) {
             console.error('Error joining room:', error);
@@ -323,11 +345,18 @@ class RoomManager {
     }
 
     async completeRoomJoin(languageCode = null) {
-        this.updateRoomUI();
+        // Extract room code from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        this.roomCode = urlParams.get('room');
         
+        // Determine if this is a host or participant view
+        this.isHost = window.location.pathname.includes('host.html');
+    
+        this.updateRoomUI();
+    
         // Connect WebSocket first
         await this.connectWebSocket();
-        
+    
         // Set language after WebSocket is connected
         if (languageCode && !this.isHost) {
             this.setUserLanguage(languageCode);

@@ -92,6 +92,15 @@ class ConnectionManager:
 # Initialize connection manager
 connection_manager = ConnectionManager()
 
+@app.on_event("startup")
+async def startup_event():
+    async def periodic_cleanup():
+        while True:
+            await asyncio.sleep(300)  # Run every 5 minutes
+            room_manager.cleanup_inactive_users()
+    
+    asyncio.create_task(periodic_cleanup())
+
 @app.middleware("http")
 async def add_cross_origin_isolate_headers(request, call_next):
     """Add necessary headers for AudioWorklet functionality."""
@@ -125,6 +134,10 @@ async def create_room(user_id: str):
 async def join_room(room_code: str, user_id: str):
     """Join an existing room."""
     try:
+        # First, remove user from any existing room
+        room_manager.leave_room(user_id)
+        
+        # Then join the new room
         room = room_manager.join_room(room_code=room_code, user_id=user_id)
         
         # Broadcast participant update to all room members
@@ -139,9 +152,36 @@ async def join_room(room_code: str, user_id: str):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+def leave_room(self, user_id: str) -> None:
+    """Remove a user from their current room."""
+    room_code = self._user_to_room.get(user_id)
+    if not room_code:
+        return
+        
+    room = self._rooms.get(room_code)
+    if not room:
+        # Cleanup any orphaned user-to-room mapping
+        del self._user_to_room[user_id]
+        return
+    
+    if user_id == room.host_id:
+        # If host leaves, close the room
+        room.is_active = False
+        # Remove all users from the room
+        for guest in list(room.guests):
+            if guest in self._user_to_room:
+                del self._user_to_room[guest]
+        if user_id in self._user_to_room:
+            del self._user_to_room[user_id]
+    else:
+        # Remove guest from room
+        if user_id in room.guests:
+            room.guests.remove(user_id)
+        if user_id in self._user_to_room:
+            del self._user_to_room[user_id]
+
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    """Handle WebSocket connections."""
     await connection_manager.connect(client_id, websocket)
     print(f"WebSocket connected for client {client_id}")
     
@@ -151,6 +191,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             print(f"No room found for client {client_id}")
             await websocket.close(code=4000, reason="Not in a room")
             return
+        
+        # Update last active timestamp
+        room.user_last_active[client_id] = datetime.now()
             
         if room_manager.is_room_host(room.code, client_id):
             print(f"Client {client_id} is host of room {room.code}")
@@ -172,28 +215,39 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             )
         
         while True:
-            if room_manager.is_room_host(room.code, client_id):
-                data = await websocket.receive_bytes()
-                transcribers[client_id].process_audio(data)
-            else:
-                data = await websocket.receive_json()
-                print(f"Received message from client {client_id}: {data}")
-                
-                if data.get("type") == "ping":
-                    await websocket.send_json({"type": "pong"})
-                elif data.get("type") == "language_preference":
-                    language = data.get("language")
-                    print(f"Setting language preference for {client_id}: {language}")
-                    host_id = room.host_id
-                    if host_id in transcribers:
-                        await transcribers[host_id].set_user_language(client_id, language)
-                    else:
-                        print(f"Host transcriber not found for room {room.code}")
+            # Periodically update last active timestamp
+            room.user_last_active[client_id] = datetime.now()
+            
+            # Timeout for receiving messages to allow timestamp updates
+            try:
+                if room_manager.is_room_host(room.code, client_id):
+                    data = await asyncio.wait_for(websocket.receive_bytes(), timeout=30.0)
+                    transcribers[client_id].process_audio(data)
+                else:
+                    data = await asyncio.wait_for(websocket.receive_json(), timeout=30.0)
+                    print(f"Received message from client {client_id}: {data}")
                     
+                    if data.get("type") == "ping":
+                        await websocket.send_json({"type": "pong"})
+                    elif data.get("type") == "language_preference":
+                        language = data.get("language")
+                        print(f"Setting language preference for {client_id}: {language}")
+                        host_id = room.host_id
+                        if host_id in transcribers:
+                            await transcribers[host_id].set_user_language(client_id, language)
+                        else:
+                            print(f"Host transcriber not found for room {room.code}")
+            
+            except asyncio.TimeoutError:
+                # Send a ping to keep the connection alive
+                await websocket.send_json({"type": "ping"})
+                continue
+        
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for client {client_id}")
         connection_manager.disconnect(client_id)
-        room_manager.leave_room(client_id)
+        
+        # Do not immediately remove from room, let cleanup handle it
         if client_id in transcribers:
             transcribers[client_id].stop()
             del transcribers[client_id]
@@ -209,9 +263,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             )
     
     except Exception as e:
-        print(f"Error in websocket connection: {str(e)}")
+        print(f"Error in websocket connection for {client_id}: {str(e)}")
         connection_manager.disconnect(client_id)
-        room_manager.leave_room(client_id)
+        
         if client_id in transcribers:
             transcribers[client_id].stop()
             del transcribers[client_id]
