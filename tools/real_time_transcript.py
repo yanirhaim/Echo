@@ -54,14 +54,22 @@ class RealTimeTranscriber:
                 # Send final transcript
                 await self._send_message("final", transcript.text)
                 
-                # Get and send translation
-                translation = await translate(transcript.text, language="Afrikaans")
-                await self._send_message("translation", translation)
+                try:
+                    # Get and send translation
+                    translation = await translate(transcript.text, language="Afrikaans")
+                    if translation:
+                        await self._send_message("translation", translation)
+                    else:
+                        await self._send_message("error", "Translation failed: No response received")
+                except Exception as e:
+                    print(f"Translation error: {e}")
+                    await self._send_message("error", f"Translation error: {str(e)}")
             else:
                 # Send partial transcript
                 await self._send_message("partial", transcript.text)
         except Exception as e:
             print(f"Error handling transcript: {e}")
+            await self._send_message("error", f"Transcript handling error: {str(e)}")
 
     def _on_error(self, error: aai.RealtimeError):
         """Callback when an error occurs."""
