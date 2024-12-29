@@ -3,20 +3,94 @@ let socket = null;
 let audioContext = null;
 let audioStream = null;
 let workletNode = null;
+let currentTranscriptId = null;
 
 const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
-const transcriptDiv = document.getElementById('transcript');
-const translationDiv = document.getElementById('translation');
+const clearButton = document.getElementById('clearButton');
 const statusDiv = document.getElementById('status');
+const transcriptContainer = document.getElementById('transcript-container');
 
 // Generate a unique client ID
 const clientId = 'client_' + Math.random().toString(36).substr(2, 9);
 
+// Helper function to create timestamp
+function getTimestamp() {
+    const now = new Date();
+    return now.toLocaleTimeString();
+}
+
+// Helper function to create a new transcript entry
+function createTranscriptEntry(text, isPartial = false) {
+    const entry = document.createElement('div');
+    entry.className = `transcript-entry ${isPartial ? 'partial' : ''}`;
+    
+    if (isPartial) {
+        entry.id = 'partial-transcript';
+    } else {
+        entry.id = `transcript-${Date.now()}`;
+    }
+
+    const timestamp = document.createElement('div');
+    timestamp.className = 'transcript-timestamp';
+    timestamp.textContent = getTimestamp();
+
+    const transcriptText = document.createElement('div');
+    transcriptText.className = 'transcript-text';
+    transcriptText.textContent = isPartial ? `${text}...` : text;
+
+    entry.appendChild(timestamp);
+    entry.appendChild(transcriptText);
+
+    return entry;
+}
+
+// Helper function to update or add translation
+function addTranslation(transcriptId, translationText) {
+    const transcriptEntry = document.getElementById(transcriptId);
+    if (transcriptEntry) {
+        // Check if translation already exists
+        let translationDiv = transcriptEntry.querySelector('.translation-text');
+        if (!translationDiv) {
+            translationDiv = document.createElement('div');
+            translationDiv.className = 'translation-text';
+            transcriptEntry.appendChild(translationDiv);
+        }
+        translationDiv.textContent = translationText;
+    }
+}
+
+// Helper function to update partial transcript
+function updatePartialTranscript(text) {
+    let partialEntry = document.getElementById('partial-transcript');
+    if (!partialEntry) {
+        partialEntry = createTranscriptEntry(text, true);
+        transcriptContainer.insertBefore(partialEntry, transcriptContainer.firstChild);
+    } else {
+        partialEntry.querySelector('.transcript-text').textContent = `${text}...`;
+    }
+}
+
+// Helper function to finalize transcript
+function finalizeTranscript(text) {
+    // Remove partial transcript if it exists
+    const partialEntry = document.getElementById('partial-transcript');
+    if (partialEntry) {
+        partialEntry.remove();
+    }
+
+    // Create new final transcript entry
+    const finalEntry = createTranscriptEntry(text, false);
+    currentTranscriptId = finalEntry.id;
+    transcriptContainer.insertBefore(finalEntry, transcriptContainer.firstChild);
+
+    // Scroll to the top
+    transcriptContainer.scrollTop = 0;
+}
+
 async function initAudioWorklet() {
     try {
         audioContext = new AudioContext({ sampleRate: 16000 });
-        // Update the path to the worklet file
         await audioContext.audioWorklet.addModule('/static/audio-processor.worklet.js');
         return true;
     } catch (error) {
@@ -27,7 +101,6 @@ async function initAudioWorklet() {
 
 async function startRecording() {
     try {
-        // Connect WebSocket
         socket = new WebSocket(`ws://${window.location.host}/ws/${clientId}`);
         
         socket.onopen = () => {
@@ -46,13 +119,15 @@ async function startRecording() {
             
             switch(data.type) {
                 case 'partial':
-                    transcriptDiv.textContent = data.text + '...';
+                    updatePartialTranscript(data.text);
                     break;
                 case 'final':
-                    transcriptDiv.textContent = data.text;
+                    finalizeTranscript(data.text);
                     break;
                 case 'translation':
-                    translationDiv.textContent = data.text;
+                    if (currentTranscriptId) {
+                        addTranslation(currentTranscriptId, data.text);
+                    }
                     break;
                 case 'error':
                     console.error('Server error:', data.text);
@@ -60,7 +135,6 @@ async function startRecording() {
             }
         };
 
-        // Initialize audio worklet if not already done
         if (!audioContext) {
             const initialized = await initAudioWorklet();
             if (!initialized) {
@@ -68,11 +142,9 @@ async function startRecording() {
             }
         }
 
-        // Get audio stream
         audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const source = audioContext.createMediaStreamSource(audioStream);
         
-        // Create and connect the worklet
         workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
         workletNode.port.onmessage = (event) => {
             if (socket && socket.readyState === WebSocket.OPEN) {
@@ -115,5 +187,11 @@ function stopRecording() {
     audioStream = null;
 }
 
+function clearTranscripts() {
+    transcriptContainer.innerHTML = '';
+    currentTranscriptId = null;
+}
+
 startButton.onclick = startRecording;
 stopButton.onclick = stopRecording;
+clearButton.onclick = clearTranscripts;
