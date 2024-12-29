@@ -8,6 +8,8 @@ Echo/
 │   └── audio-processor.worklet.js  # AudioWorklet processor
 ├── templates/             # Templates directory
 │   └── index.html        # Main HTML template
+│    └── host-view.html        # Main HTML template
+│    └── participant-view.html        # Main HTML template
 └── tools/                # Python modules directory
     ├── __init__.py       # Makes tools a Python package
     ├── real_time_transcript.py  # Handles transcription

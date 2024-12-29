@@ -216,6 +216,14 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             transcribers[client_id].stop()
             del transcribers[client_id]
 
+@app.get("/host.html", response_class=HTMLResponse)
+async def get_host_view(request: Request):
+    return templates.TemplateResponse("host-view.html", {"request": request})
+
+@app.get("/participant.html", response_class=HTMLResponse)
+async def get_participant_view(request: Request):
+    return templates.TemplateResponse("participant-view.html", {"request": request})
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

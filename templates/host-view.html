@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Echo - Host Room</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #46178F;
+            background: linear-gradient(135deg, #46178F 0%, #46178F 50%, #3B1477 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 48px;
+        }
+
+        /* Header Section */
+        .header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            margin-bottom: 32px;
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        /* Room Info */
+        .room-info {
+            display: flex;
+            gap: 48px;
+            color: white;
+        }
+
+        .info-item {
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 8px;
+        }
+
+        .info-value {
+            font-size: 32px;
+            font-weight: 600;
+        }
+
+        /* Recording Controls */
+        .recording-controls {
+            margin: 48px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .control-button {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+        }
+
+        .mic-button {
+            background: white;
+            color: #46178F;
+        }
+
+        .mic-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .stop-button {
+            background: #EF4444;
+            color: white;
+            display: none;
+        }
+
+        .stop-button:hover {
+            background: #DC2626;
+            transform: scale(1.05);
+        }
+
+        .recording-status {
+            color: white;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #9CA3AF;
+        }
+
+        .status-dot.recording {
+            background: #EF4444;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        /* Leave Button */
+        .leave-button {
+            padding: 12px 32px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid white;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .leave-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Echo</div>
+        </div>
+
+        <div class="room-info">
+            <div class="info-item">
+                <div class="info-label">Room Code</div>
+                <div class="info-value" id="currentRoomCode">----</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Participants</div>
+                <div class="info-value" id="participantCount">0</div>
+            </div>
+        </div>
+
+        <div class="recording-controls">
+            <button id="micButton" class="control-button mic-button">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button id="stopButton" class="control-button stop-button">
+                <i class="fas fa-stop"></i>
+            </button>
+            <div class="recording-status">
+                <div id="statusDot" class="status-dot"></div>
+                <span id="statusText">Not Recording</span>
+            </div>
+        </div>
+
+        <button id="leaveRoomBtn" class="leave-button">End Session</button>
+    </div>
+
+    <script>
+        // Get room code from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
+        const userId = localStorage.getItem('userId');
+
+        // Initialize WebSocket connection
+        let socket = null;
+
+        // Initialize audio context and recording state
+        let audioContext = null;
+        let audioStream = null;
+        let workletNode = null;
+
+        // Update UI with room code
+        document.getElementById('currentRoomCode').textContent = roomCode;
+
+        // Initialize audio worklet
+        async function initAudioWorklet() {
+            try {
+                audioContext = new AudioContext({ sampleRate: 16000 });
+                await audioContext.audioWorklet.addModule('/static/audio-processor.worklet.js');
+                return true;
+            } catch (error) {
+                console.error('Error initializing audio worklet:', error);
+                return false;
+            }
+        }
+
+        // Connect WebSocket
+        function connectWebSocket() {
+            socket = new WebSocket(`ws://${window.location.host}/ws/${userId}`);
+            
+            socket.onopen = () => {
+                console.log('WebSocket connected');
+            };
+
+            socket.onclose = () => {
+                console.log('WebSocket disconnected');
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+        }
+
+        // Handle WebSocket messages
+        function handleWebSocketMessage(data) {
+            if (data.type === 'participant_count') {
+                document.getElementById('participantCount').textContent = data.count;
+            }
+        }
+
+        // Update recording status
+        function updateRecordingStatus(isRecording) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const micButton = document.getElementById('micButton');
+            const stopButton = document.getElementById('stopButton');
+
+            if (isRecording) {
+                statusDot.classList.add('recording');
+                statusText.textContent = 'Recording';
+                micButton.style.display = 'none';
+                stopButton.style.display = 'flex';
+            } else {
+                statusDot.classList.remove('recording');
+                statusText.textContent = 'Not Recording';
+                micButton.style.display = 'flex';
+                stopButton.style.display = 'none';
+            }
+        }
+
+        // Recording functions
+        async function startRecording() {
+            try {
+                if (!audioContext) {
+                    const initialized = await initAudioWorklet();
+                    if (!initialized) {
+                        throw new Error('Failed to initialize audio worklet');
+                    }
+                }
+
+                audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const source = audioContext.createMediaStreamSource(audioStream);
+                
+                workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+                workletNode.port.onmessage = (event) => {
+                    if (socket?.readyState === WebSocket.OPEN) {
+                        socket.send(event.data);
+                    }
+                };
+                
+                source.connect(workletNode);
+                workletNode.connect(audioContext.destination);
+                
+                updateRecordingStatus(true);
+                
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                stopRecording();
+            }
+        }
+
+        function stopRecording() {
+            if (audioStream) {
+                audioStream.getTracks().forEach(track => track.stop());
+            }
+            if (workletNode) {
+                workletNode.disconnect();
+                workletNode = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            
+            audioStream = null;
+            updateRecordingStatus(false);
+        }
+
+        // Attach event listeners
+        document.getElementById('micButton').addEventListener('click', startRecording);
+        document.getElementById('stopButton').addEventListener('click', stopRecording);
+        document.getElementById('leaveRoomBtn').addEventListener('click', () => {
+            if (socket) {
+                socket.close();
+            }
+            window.location.href = '/';
+        });
+
+        // Initialize connection
+        connectWebSocket();
+    </script>
+</body>
+</html>

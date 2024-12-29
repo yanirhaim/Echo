@@ -1,291 +1,323 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Real-Time Translation Room</title>
+    <title>Echo - Real-Time Translation Room</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* Base Styles */
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
+        * {
             margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
 
-        /* Status Indicators */
-        .status {
-            padding: 8px;
-            margin: 10px 0;
-            border-radius: 4px;
-            font-weight: bold;
-        }
-        .status.connected {
-            color: #28a745;
-            background-color: #d4edda;
-        }
-        .status.disconnected {
-            color: #dc3545;
-            background-color: #f8d7da;
-        }
-
-        /* Room Management */
-        .room-management {
-            margin: 20px 0;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        }
-        .room-controls {
+        body {
+            min-height: 100vh;
+            background: #46178F;
+            background: linear-gradient(135deg, #46178F 0%, #46178F 50%, #3B1477 100%);
             display: flex;
             flex-direction: column;
-            gap: 10px;
-        }
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin: 10px 0;
-        }
-        #joinRoomForm {
-            display: flex;
-            gap: 10px;
             align-items: center;
-        }
-        #roomCodeInput {
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 16px;
-            text-transform: uppercase;
-        }
-        .room-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            background-color: #e9ecef;
-            border-radius: 4px;
+            position: relative;
         }
 
-        /* Language Selection */
-        .language-selection {
+        .language-selector {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 9999px;
+            padding: 4px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .language-selector span {
+            color: white;
+            font-size: 14px;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 16px;
+        }
+
+        .logo {
+            margin-bottom: 32px;
+            color: white;
+            font-size: 48px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .action-buttons {
+            width: 384px;
+            max-width: 100%;
+            display: flex;
+            gap: 16px;
+        }
+
+        .action-button {
+            flex: 1;
+            height: 56px;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .create-button {
+            background: white;
+            color: #46178F;
+        }
+
+        .create-button:hover {
+            background: #f8f9fa;
+            transform: translateY(-2px);
+        }
+
+        .join-button {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid white;
+        }
+
+        .join-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .login-form {
+            width: 384px;
+            max-width: 100%;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 16px;
+            display: none;
+        }
+
+        #roomCodeInput {
+            width: 100%;
+            height: 56px;
+            text-align: center;
+            font-size: 18px;
+            border: none;
+            outline: none;
+            padding: 0 16px;
+            text-transform: uppercase;
+        }
+
+        #roomCodeInput::placeholder {
+            color: #6b7280;
+        }
+
+        .enter-button {
+            width: 100%;
+            height: 56px;
+            background: #18181b;
+            color: white;
+            border: none;
+            font-size: 18px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .enter-button:hover {
+            background: #27272a;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 32px 16px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .footer p {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .footer a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Loading animation */
+        .loading {
+            display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             background: rgba(0, 0, 0, 0.5);
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 1000;
         }
-        .language-dialog {
+
+        .loading-content {
             background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            width: 90%;
-            max-width: 400px;
-        }
-        .language-select {
-            width: 100%;
-            padding: 8px;
-            margin: 10px 0;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 16px;
+            padding: 24px;
+            border-radius: 12px;
+            text-align: center;
         }
 
-        /* Buttons */
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: background-color 0.3s;
-        }
-        .primary-button {
-            background-color: #007bff;
-            color: white;
-        }
-        .primary-button:hover {
-            background-color: #0056b3;
-        }
-        .secondary-button {
-            background-color: #6c757d;
-            color: white;
-        }
-        .secondary-button:hover {
-            background-color: #545b62;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #46178F;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
         }
 
-        /* Recording Controls */
-        .recording-controls {
-            margin: 20px 0;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        /* Transcript Styles */
-        .transcript-container {
-            max-height: 500px;
-            overflow-y: auto;
-            padding: 10px;
-            border: 1px solid #eee;
-            border-radius: 8px;
-            background-color: white;
-            margin-top: 20px;
-        }
-        .transcript-entry {
-            border: 1px solid #eee;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 4px;
-            background-color: #f9f9f9;
-        }
-        .transcript-timestamp {
-            font-size: 0.8em;
-            color: #666;
-            margin-bottom: 5px;
-        }
-        .transcript-text {
-            margin: 5px 0;
-        }
-        .translation-text {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #eee;
-            color: #2c5282;
-        }
-        .partial {
-            border-left: 3px solid #007bff;
-        }
-
-        /* Current Language Display */
-        .current-language {
-            padding: 8px;
-            background-color: #e9ecef;
-            border-radius: 4px;
-            margin: 10px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .change-language-btn {
-            background-color: #6c757d;
-            color: white;
-            padding: 5px 10px;
-            font-size: 14px;
-        }
-
-        /* Utility Classes */
-        .hidden {
-            display: none !important;
-        }
-        .clear-button {
-            background-color: #dc3545;
-            color: white;
-        }
-        .clear-button:hover {
-            background-color: #c82333;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Real-Time Translation Room</h1>
+    <div class="language-selector">
+        <span>🌐</span>
+        <span>EN</span>
+    </div>
+
+    <div class="main-content">
+        <div class="logo">Echo</div>
         
-        <!-- Room Management Section -->
-        <div class="room-management">
-            <div id="roomStatus" class="status disconnected">Not in a room</div>
-            <div class="button-group">
-                <button id="createRoomBtn" class="primary-button">Create Room</button>
-                <button id="joinRoomBtn" class="primary-button">Join Room</button>
-            </div>
-            <div id="joinRoomForm" class="hidden">
-                <input type="text" id="roomCodeInput" 
-                       placeholder="Enter 5-letter room code"
-                       maxlength="5"
-                       pattern="[A-Z]{5}">
-                <button id="submitJoinBtn" class="primary-button">Join</button>
-            </div>
-            <div id="roomInfo" class="hidden">
-                <div class="room-info">
-                    <div class="room-code">Room: <span id="currentRoomCode"></span></div>
-                    <div class="participant-count">Participants: <span id="participantCount">0</span></div>
-                    <button id="leaveRoomBtn" class="secondary-button">Leave Room</button>
-                </div>
-            </div>
-            
-            <!-- Current Language Display (for guests) -->
-            <div id="currentLanguageInfo" class="current-language hidden">
-                <span>Current Language: <span id="currentLanguageDisplay"></span></span>
-                <button id="changeLanguageBtn" class="change-language-btn">Change Language</button>
-            </div>
+        <div class="action-buttons">
+            <button id="createRoomBtn" class="action-button create-button">Create Room</button>
+            <button id="joinRoomBtn" class="action-button join-button">Join Room</button>
         </div>
 
-        <!-- Language Selection Modal -->
-        <div class="language-selection hidden">
-            <div class="language-dialog">
-                <h3>Select Your Preferred Language</h3>
-                <select id="languageSelect" class="language-select">
-                    <option value="af">Afrikaans</option>
-                    <option value="ar">Arabic</option>
-                    <option value="zh">Chinese</option>
-                    <option value="nl">Dutch</option>
-                    <option value="en">English</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                    <option value="hi">Hindi</option>
-                    <option value="id">Indonesian</option>
-                    <option value="it">Italian</option>
-                    <option value="ja">Japanese</option>
-                    <option value="ko">Korean</option>
-                    <option value="pt">Portuguese</option>
-                    <option value="ru">Russian</option>
-                    <option value="es">Spanish</option>
-                    <option value="sw">Swahili</option>
-                    <option value="tr">Turkish</option>
-                    <option value="vi">Vietnamese</option>
-                </select>
-                <button id="confirmLanguageBtn" class="primary-button">Confirm</button>
-            </div>
+        <div class="login-form" id="joinRoomForm">
+            <input type="text" id="roomCodeInput" placeholder="Enter room code" maxlength="5" pattern="[A-Z]{5}">
+            <button id="submitJoinBtn" class="enter-button">Enter</button>
         </div>
+    </div>
 
-        <!-- Recording Controls (Only visible for host) -->
-        <div class="recording-controls hidden">
-            <button id="startButton" class="primary-button">Start Recording</button>
-            <button id="stopButton" class="primary-button" disabled>Stop Recording</button>
-            <button id="clearButton" class="clear-button">Clear History</button>
-        </div>
-        
-        <!-- Transcripts Section -->
-        <h2>Transcripts:</h2>
-        <div id="transcript-container" class="transcript-container">
-            <!-- Transcript entries will be added here dynamically -->
+    <div class="footer">
+        <p>Create your own room</p>
+        <p>
+            <a href="#">Terms</a> | <a href="#">Privacy</a>
+        </p>
+    </div>
+
+    <div id="loadingScreen" class="loading hidden">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p id="loadingText">Creating room...</p>
         </div>
     </div>
 
     <!-- Scripts -->
-    <script src="/static/room-manager.js"></script>
-    <script src="/static/script.js"></script>
+    <script>
+        // Initialize user ID if not exists
+        if (!localStorage.getItem('userId')) {
+            localStorage.setItem('userId', 'user_' + Math.random().toString(36).substr(2, 9));
+        }
+        const userId = localStorage.getItem('userId');
+
+        // Show/hide loading screen
+        function showLoading(message) {
+            document.getElementById('loadingScreen').classList.remove('hidden');
+            document.getElementById('loadingText').textContent = message;
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingScreen').classList.add('hidden');
+        }
+
+        // Create room function
+        async function createRoom() {
+            showLoading('Creating room...');
+            try {
+                const response = await fetch(`/api/rooms/create/${userId}`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to create room');
+                }
+                
+                const data = await response.json();
+                window.location.href = `/host.html?room=${data.room_code}`;
+            } catch (error) {
+                console.error('Error creating room:', error);
+                hideLoading();
+                alert('Failed to create room. Please try again.');
+            }
+        }
+
+        // Join room function
+        async function joinRoom(roomCode) {
+            showLoading('Joining room...');
+            try {
+                const response = await fetch(`/api/rooms/join/${roomCode}/${userId}`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to join room');
+                }
+                
+                const data = await response.json();
+                window.location.href = `/participant.html?room=${data.room_code}`;
+            } catch (error) {
+                console.error('Error joining room:', error);
+                hideLoading();
+                alert('Failed to join room. Please check the room code and try again.');
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('createRoomBtn').addEventListener('click', createRoom);
+
+        document.getElementById('joinRoomBtn').addEventListener('click', () => {
+            document.getElementById('joinRoomForm').style.display = 'block';
+        });
+
+        document.getElementById('submitJoinBtn').addEventListener('click', () => {
+            const roomCode = document.getElementById('roomCodeInput').value.toUpperCase();
+            if (roomCode.length === 5) {
+                joinRoom(roomCode);
+            } else {
+                alert('Please enter a valid 5-letter room code');
+            }
+        });
+
+        document.getElementById('roomCodeInput').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+        });
+
+        document.getElementById('roomCodeInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('submitJoinBtn').click();
+            }
+        });
+    </script>
 </body>
 </html>

@@ -95,11 +95,8 @@ class RoomManager {
             }
             
             const data = await response.json();
-            this.roomCode = data.room_code;
-            this.isHost = true;
-            
-            this.updateRoomUI();
-            this.connectWebSocket();
+            // Redirect to host view with room code
+            window.location.href = `/host.html?room=${data.room_code}`;
             
         } catch (error) {
             console.error('Error creating room:', error);
@@ -118,15 +115,8 @@ class RoomManager {
             }
             
             const data = await response.json();
-            this.roomCode = data.room_code;
-            this.isHost = false;
-            
-            // Show language selection before completing room join
-            if (!this.isHost) {
-                document.querySelector('.language-selection').classList.remove('hidden');
-            } else {
-                this.completeRoomJoin();
-            }
+            // Redirect to participant view with room code
+            window.location.href = `/participant.html?room=${data.room_code}`;
             
         } catch (error) {
             console.error('Error joining room:', error);

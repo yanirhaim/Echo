@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Echo - Translation Room</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #46178F;
+            background: linear-gradient(135deg, #46178F 0%, #46178F 50%, #3B1477 100%);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Header Section */
+        .header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            margin-bottom: 32px;
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        /* Room Info */
+        .room-info {
+            display: flex;
+            gap: 48px;
+            color: white;
+            justify-content: center;
+            margin-bottom: 48px;
+        }
+
+        .info-item {
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 8px;
+        }
+
+        .info-value {
+            font-size: 32px;
+            font-weight: 600;
+        }
+
+        /* Language Selection Screen */
+        .language-screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: inherit;
+            padding: 24px;
+            z-index: 1000;
+        }
+
+        .language-content {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .language-title {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+
+        .language-subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 18px;
+            margin-bottom: 24px;
+        }
+
+        .language-select {
+            width: 100%;
+            padding: 16px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            cursor: pointer;
+            outline: none;
+            background: white;
+        }
+
+        .confirm-button {
+            width: 100%;
+            padding: 16px;
+            background: white;
+            color: #46178F;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .confirm-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Transcript Section */
+        .transcript-container {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .transcript-entry {
+            background: #ffffff;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .transcript-entry.partial {
+            background: #F3F4F6;
+        }
+
+        .message-container {
+            display: flex;
+            gap: 16px;
+            padding: 16px;
+        }
+
+        .message-timestamp {
+            flex-shrink: 0;
+            width: 80px;
+            text-align: right;
+            font-size: 12px;
+            color: #6B7280;
+            padding-top: 4px;
+        }
+
+        .message-content {
+            flex: 1;
+        }
+
+        .original-text {
+            font-size: 16px;
+            color: #1F2937;
+            line-height: 1.6;
+            margin-bottom: 12px;
+            background: #F9FAFB;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #46178F;
+        }
+
+        .translation-text {
+            font-size: 16px;
+            color: #46178F;
+            line-height: 1.6;
+            background: #F5F3FF;
+            padding: 12px;
+            border-radius: 8px;
+            position: relative;
+            margin-left: 24px;
+        }
+
+        .translation-text::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: 16px;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 8px solid #F5F3FF;
+        }
+
+        .translation-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #46178F;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .partial-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #6B7280;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .dot {
+            width: 4px;
+            height: 4px;
+            background: #6B7280;
+            border-radius: 50%;
+            animation: dotPulse 1.5s infinite;
+        }
+
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes dotPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(0.7); opacity: 0.5; }
+        }
+
+        /* Leave Button */
+        .leave-button {
+            padding: 12px 32px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid white;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            align-self: flex-end;
+        }
+
+        .leave-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Language Selection Screen -->
+    <div class="language-screen" id="languageScreen">
+        <div class="language-content">
+            <div class="logo">Echo</div>
+            <h2 class="language-title">Connected to Room <span id="roomCodeDisplay"></span></h2>
+            <p class="language-subtitle">Please select your language</p>
+            <select id="languageSelect" class="language-select">
+                <option value="af">Afrikaans</option>
+                <option value="ar">Arabic</option>
+                <option value="zh">Chinese</option>
+                <option value="nl">Dutch</option>
+                <option value="en">English</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="hi">Hindi</option>
+                <option value="id">Indonesian</option>
+                <option value="it">Italian</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="pt">Portuguese</option>
+                <option value="ru">Russian</option>
+                <option value="es">Spanish</option>
+                <option value="sw">Swahili</option>
+                <option value="tr">Turkish</option>
+                <option value="vi">Vietnamese</option>
+            </select>
+            <button id="confirmLanguageBtn" class="confirm-button">Continue</button>
+        </div>
+    </div>
+
+    <!-- Main View -->
+    <div class="container" id="mainView">
+        <div class="header">
+            <div class="logo">Echo</div>
+        </div>
+
+        <div class="room-info">
+            <div class="info-item">
+                <div class="info-label">Room Code</div>
+                <div class="info-value" id="currentRoomCode">----</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Participants</div>
+                <div class="info-value" id="participantCount">0</div>
+            </div>
+        </div>
+
+        <div id="transcript-container" class="transcript-container">
+            <!-- Transcript entries will be added here dynamically -->
+        </div>
+
+        <button id="leaveRoomBtn" class="leave-button">Leave Room</button>
+    </div>
+
+    <script>
+        // Get room code from URL and user ID from localStorage
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
+        const userId = localStorage.getItem('userId') || 'user_' + Math.random().toString(36).substr(2, 9);
+
+        // Update room code displays
+        const roomCodeElements = document.querySelectorAll('#currentRoomCode, #roomCodeDisplay');
+        roomCodeElements.forEach(element => element.textContent = roomCode);
+
+        let socket = null;
+
+        // Connect WebSocket and handle language selection
+        document.getElementById('confirmLanguageBtn').addEventListener('click', async () => {
+            const selectedLanguage = document.getElementById('languageSelect').value;
+            try {
+                // First try to join the room
+                await joinRoom(roomCode);
+                // If successful, proceed with WebSocket connection
+                document.getElementById('languageScreen').classList.add('hidden');
+                document.getElementById('mainView').classList.remove('hidden');
+                connectWebSocket(selectedLanguage);
+            } catch (error) {
+                console.error('Failed to join room:', error);
+                alert(error.message);
+                window.location.href = '/';
+            }
+        });
+
+        // Connect WebSocket
+        function connectWebSocket(selectedLanguage) {
+            socket = new WebSocket(`ws://${window.location.host}/ws/${userId}`);
+            
+            socket.onopen = () => {
+                console.log('WebSocket connected');
+                // Send language preference after connection
+                sendLanguagePreference(selectedLanguage);
+                // Start ping interval
+                startPingInterval();
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+
+            socket.onclose = () => {
+                console.log('WebSocket disconnected');
+                clearInterval(window.pingInterval);
+            };
+        }
+
+        // Start ping interval
+        function startPingInterval() {
+            window.pingInterval = setInterval(() => {
+                if (socket?.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ type: 'ping' }));
+                }
+            }, 30000);
+        }
+
+        // Join room function
+        async function joinRoom(roomCode) {
+            const response = await fetch(`/api/rooms/join/${roomCode}/${userId}`, {
+                method: 'POST'
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to join room');
+            }
+            
+            const data = await response.json();
+            updateParticipantCount(data.participant_count);
+            return data;
+        }
+
+        // Send language preference
+        function sendLanguagePreference(language) {
+            if (socket?.readyState === WebSocket.OPEN) {
+                const message = {
+                    type: 'language_preference',
+                    language: language
+                };
+                socket.send(JSON.stringify(message));
+            }
+        }
+
+        // Handle WebSocket messages
+        function handleWebSocketMessage(data) {
+            console.log('Received message:', data);
+            switch(data.type) {
+                case 'participant_count':
+                    updateParticipantCount(data.count);
+                    break;
+                case 'final':
+                    finalizeTranscript(data.text);
+                    break;
+                case 'translation':
+                    addTranslation(window.currentTranscriptId, data.text);
+                    break;
+            }
+        }
+
+        // Update participant count
+        function updateParticipantCount(count) {
+            document.getElementById('participantCount').textContent = count;
+        }
+
+        // Transcript handling functions
+        function finalizeTranscript(text) {
+            const finalEntry = createTranscriptEntry(text);
+            window.currentTranscriptId = finalEntry.id;
+            
+            const container = document.getElementById('transcript-container');
+            container.insertBefore(finalEntry, container.firstChild);
+            container.scrollTop = 0;
+        }
+
+        function createTranscriptEntry(text, isPartial = false) {
+            const entry = document.createElement('div');
+            entry.className = `transcript-entry ${isPartial ? 'partial' : ''}`;
+            entry.id = `transcript-${Date.now()}`;
+
+            const messageContainer = document.createElement('div');
+            messageContainer.className = 'message-container';
+
+            // Timestamp
+            const timestamp = document.createElement('div');
+            timestamp.className = 'message-timestamp';
+            timestamp.textContent = new Date().toLocaleTimeString();
+
+            // Message content container
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+
+            // Original text
+            const originalText = document.createElement('div');
+            originalText.className = 'original-text';
+            originalText.textContent = text;
+
+            messageContent.appendChild(originalText);
+
+            if (isPartial) {
+                const partialIndicator = document.createElement('div');
+                partialIndicator.className = 'partial-indicator';
+                partialIndicator.innerHTML = 'Processing<div class="typing-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+                messageContent.appendChild(partialIndicator);
+            }
+
+            messageContainer.appendChild(timestamp);
+            messageContainer.appendChild(messageContent);
+            entry.appendChild(messageContainer);
+
+            return entry;
+        }
+
+        function addTranslation(transcriptId, translationText) {
+            const transcriptEntry = document.getElementById(transcriptId);
+            if (transcriptEntry) {
+                const messageContent = transcriptEntry.querySelector('.message-content');
+                if (messageContent) {
+                    let translationContainer = messageContent.querySelector('.translation-container');
+                    if (!translationContainer) {
+                        translationContainer = document.createElement('div');
+                        translationContainer.className = 'translation-container';
+
+                        const translationTag = document.createElement('div');
+                        translationTag.className = 'translation-tag';
+                        translationTag.textContent = 'Translation';
+                        translationContainer.appendChild(translationTag);
+
+                        const translationDiv = document.createElement('div');
+                        translationDiv.className = 'translation-text';
+                        translationDiv.textContent = translationText;
+                        translationContainer.appendChild(translationDiv);
+
+                        messageContent.appendChild(translationContainer);
+                    } else {
+                        const translationDiv = translationContainer.querySelector('.translation-text');
+                        if (translationDiv) {
+                            translationDiv.textContent = translationText;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle leave room
+        document.getElementById('leaveRoomBtn').addEventListener('click', () => {
+            if (socket) {
+                socket.close();
+            }
+            window.location.href = '/';
+        });
+
+        // Initialize main view as hidden
+        document.getElementById('mainView').classList.add('hidden');
+    </script>
+</body>
+</html>
