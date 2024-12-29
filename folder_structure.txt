@@ -3,11 +3,13 @@ Echo/
 ├── requirements.txt        # Project dependencies
 ├── main.py                # FastAPI application entry point
 ├── static/                # Static files directory
-│   ├── script.js          # Main frontend JavaScript
+│   ├── script.js          # Frontend audio handling and transcription
+│   ├── room-manager.js    # Room management functionality
 │   └── audio-processor.worklet.js  # AudioWorklet processor
 ├── templates/             # Templates directory
 │   └── index.html        # Main HTML template
 └── tools/                # Python modules directory
     ├── __init__.py       # Makes tools a Python package
     ├── real_time_transcript.py  # Handles transcription
-    └── text_translation.py      # Handles translation
+    ├── text_translation.py      # Handles translation
+    └── room_manager.py         # Room management system

@@ -1,18 +1,12 @@
 // static/script.js
-let socket = null;
 let audioContext = null;
 let audioStream = null;
 let workletNode = null;
-let currentTranscriptId = null;
 
 const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
 const clearButton = document.getElementById('clearButton');
-const statusDiv = document.getElementById('status');
 const transcriptContainer = document.getElementById('transcript-container');
-
-// Generate a unique client ID
-const clientId = 'client_' + Math.random().toString(36).substr(2, 9);
 
 // Helper function to create timestamp
 function getTimestamp() {
@@ -49,7 +43,6 @@ function createTranscriptEntry(text, isPartial = false) {
 function addTranslation(transcriptId, translationText) {
     const transcriptEntry = document.getElementById(transcriptId);
     if (transcriptEntry) {
-        // Check if translation already exists
         let translationDiv = transcriptEntry.querySelector('.translation-text');
         if (!translationDiv) {
             translationDiv = document.createElement('div');
@@ -73,18 +66,14 @@ function updatePartialTranscript(text) {
 
 // Helper function to finalize transcript
 function finalizeTranscript(text) {
-    // Remove partial transcript if it exists
     const partialEntry = document.getElementById('partial-transcript');
     if (partialEntry) {
         partialEntry.remove();
     }
 
-    // Create new final transcript entry
     const finalEntry = createTranscriptEntry(text, false);
-    currentTranscriptId = finalEntry.id;
+    window.currentTranscriptId = finalEntry.id;
     transcriptContainer.insertBefore(finalEntry, transcriptContainer.firstChild);
-
-    // Scroll to the top
     transcriptContainer.scrollTop = 0;
 }
 
@@ -101,39 +90,10 @@ async function initAudioWorklet() {
 
 async function startRecording() {
     try {
-        socket = new WebSocket(`ws://${window.location.host}/ws/${clientId}`);
-        
-        socket.onopen = () => {
-            statusDiv.textContent = 'Connected';
-            statusDiv.className = 'status connected';
-        };
-        
-        socket.onclose = () => {
-            statusDiv.textContent = 'Disconnected';
-            statusDiv.className = 'status disconnected';
-            stopRecording();
-        };
-        
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            
-            switch(data.type) {
-                case 'partial':
-                    updatePartialTranscript(data.text);
-                    break;
-                case 'final':
-                    finalizeTranscript(data.text);
-                    break;
-                case 'translation':
-                    if (currentTranscriptId) {
-                        addTranslation(currentTranscriptId, data.text);
-                    }
-                    break;
-                case 'error':
-                    console.error('Server error:', data.text);
-                    break;
-            }
-        };
+        if (!window.roomManager || !window.roomManager.isHost) {
+            console.error('Must be a room host to record');
+            return;
+        }
 
         if (!audioContext) {
             const initialized = await initAudioWorklet();
@@ -147,8 +107,8 @@ async function startRecording() {
         
         workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
         workletNode.port.onmessage = (event) => {
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                socket.send(event.data);
+            if (window.roomManager.socket?.readyState === WebSocket.OPEN) {
+                window.roomManager.socket.send(event.data);
             }
         };
         
@@ -160,15 +120,11 @@ async function startRecording() {
         
     } catch (error) {
         console.error('Error starting recording:', error);
-        statusDiv.textContent = 'Error: ' + error.message;
-        statusDiv.className = 'status disconnected';
+        stopRecording();
     }
 }
 
 function stopRecording() {
-    if (socket) {
-        socket.close();
-    }
     if (audioStream) {
         audioStream.getTracks().forEach(track => track.stop());
     }
@@ -183,15 +139,53 @@ function stopRecording() {
     
     startButton.disabled = false;
     stopButton.disabled = true;
-    
     audioStream = null;
 }
 
 function clearTranscripts() {
     transcriptContainer.innerHTML = '';
-    currentTranscriptId = null;
+    window.currentTranscriptId = null;
+}
+
+// Handle WebSocket messages for transcripts and translations
+window.handleTranscriptMessage = function(data) {
+    switch(data.type) {
+        case 'partial':
+            updatePartialTranscript(data.text);
+            break;
+        case 'final':
+            finalizeTranscript(data.text);
+            break;
+        case 'translation':
+            if (window.currentTranscriptId) {
+                addTranslation(window.currentTranscriptId, data.text);
+            }
+            break;
+    }
+};
+
+// Only show recording controls for host
+function updateControlsVisibility() {
+    const isHost = window.roomManager?.isHost || false;
+    startButton.style.display = isHost ? 'inline-block' : 'none';
+    stopButton.style.display = isHost ? 'inline-block' : 'none';
 }
 
 startButton.onclick = startRecording;
 stopButton.onclick = stopRecording;
 clearButton.onclick = clearTranscripts;
+
+// Update controls visibility when room manager loads or room status changes
+document.addEventListener('DOMContentLoaded', () => {
+    // Initial visibility update
+    updateControlsVisibility();
+
+    // Create a MutationObserver to watch for changes in room status
+    const roomStatusObserver = new MutationObserver(() => {
+        updateControlsVisibility();
+    });
+
+    // Start observing room status element
+    const roomStatus = document.getElementById('roomStatus');
+    roomStatusObserver.observe(roomStatus, { childList: true, characterData: true, subtree: true });
+});

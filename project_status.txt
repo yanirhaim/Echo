@@ -13,143 +13,116 @@ Current Working Features:
 ✅ Translation displaying correctly
 ✅ Translation API pipeline functioning
 ✅ Transcript history maintained with timestamps
-✅ Translations linked to original transcripts
+✅ Room creation and management
+✅ Host/Guest role system
+✅ Real-time participant tracking
+✅ Room-wide message broadcasting
+✅ Host-only recording controls
+✅ Proper cleanup on disconnection
 
-Next Major Feature: Multi-User Room System
+Next Major Feature: Per-Guest Language Selection
 ----------------------------------------
 
 Overview:
-The application will be transformed into a Kahoot-style room-based system where one user (host) can create a session and multiple users (guests) can join to receive real-time translations of the host's speech.
+Implement a system where each guest can select their preferred language for translation, allowing multiple users to receive translations in different languages simultaneously.
 
 Key Components:
 
-1. Room Management:
-   - Generate unique 5-letter room codes (e.g., "AXBCD")
-   - Room creation interface for hosts
-   - Room joining interface for guests
-   - Real-time room status tracking
-   - Maximum participants per room limit
+1. Language Selection UI:
+   - Language selection dropdown for guests
+   - Supported languages list
+   - Save language preference
+   - Visual indicator of current language
+   - Ability to change language during session
 
-2. User Types:
-   a) Host:
-      - Creates and manages the room
-      - Controls session start/stop
-      - Broadcasts audio for transcription
-      - Can see number of connected guests
-      - Can end session for all participants
-   
-   b) Guests:
-      - Join using 5-letter room code
-      - Select preferred translation language
-      - View real-time transcripts and translations
-      - See host's speaking status
-      - Can leave session independently
+2. Backend Requirements:
+   - Store language preferences per user
+   - Handle multiple simultaneous translations
+   - Optimize translation requests
+   - Cache common translations
+   - Handle translation failures gracefully
 
-3. UI Requirements:
-   - Landing page with host/guest selection
-   - Room creation page for hosts
-   - Room joining page for guests
-   - Language selection interface for guests
-   - Participant counter display
-   - Session status indicators
-   - Kahoot-style color scheme and design
-   - Mobile-responsive layouts
+3. Translation System Updates:
+   - Modify translation pipeline for multiple languages
+   - Implement efficient batching of translations
+   - Add translation queue management
+   - Track translation status per user
+   - Handle rate limiting for multiple translations
 
-4. Backend Requirements:
-   - Room state management system
-   - WebSocket rooms/channels implementation
-   - Room code generation and validation
-   - Session cleanup on host disconnection
-   - Concurrent translation streams management
-   - Language preference tracking per user
+4. WebSocket Enhancement:
+   - Update message format for language-specific translations
+   - Target translations to specific users
+   - Handle language change events
+   - Maintain translation state per user
 
 Technical Requirements:
 ----------------------
-- Existing:
+Current:
   - AssemblyAI API key
   - OpenAI API key
   - Python 3.8+
   - Modern web browser with AudioWorklet support
+  - FastAPI
+  - WebSocket support
+  - Room management system
 
-- Additional:
-  - Redis/similar for room state management
-  - Enhanced WebSocket implementation for rooms
-  - Session management system
-  - Rate limiting for room creation
+Additional Needed:
+  - Translation caching system
+  - Enhanced message routing
+  - Rate limiting for translations
+  - Language validation system
 
-Current Dependencies:
+Implementation Steps:
 -------------------
-- FastAPI
-- uvicorn
-- python-multipart
-- jinja2
-- python-dotenv
-- assemblyai
-- langchain-openai
-- langchain-core
+1. Frontend Updates:
+   - Add language selection UI component
+   - Implement language change handlers
+   - Update translation display system
+   - Add language preference storage
 
-Additional Dependencies Needed:
-----------------------------
-- Redis (for room management)
-- FastAPI WebSocket rooms extension
-- Rate limiting middleware
-- Session management library
+2. Backend Updates:
+   - Modify translation service for multiple languages
+   - Add user language preference storage
+   - Implement translation caching
+   - Update WebSocket message handling
 
-Next Implementation Steps:
-------------------------
-1. Room System Backend:
-   - Implement room code generation
-   - Create room state management
-   - Setup WebSocket rooms
-   - Add session tracking
-
-2. User Interface:
-   - Create landing page
-   - Design room creation flow
-   - Build room joining interface
-   - Add language selection component
-   - Implement participant display
-
-3. WebSocket Enhancement:
-   - Add room-based message routing
-   - Implement host/guest role management
-   - Add broadcast capabilities
-   - Handle disconnections gracefully
+3. Translation System:
+   - Implement efficient translation queuing
+   - Add batch translation processing
+   - Optimize API usage
+   - Add translation status tracking
 
 4. Testing Requirements:
-   - Room creation/joining flow
-   - Multiple concurrent rooms
-   - Different language translations
-   - Connection recovery
-   - Session cleanup
-   - Load testing with multiple users
-
-Known Limitations to Address:
----------------------------
-- Need to implement room expiration
-- Handle host disconnection gracefully
-- Manage translation API rate limits
-- Consider room size limits
-- Plan for scaling considerations
-
-Security Considerations:
-----------------------
-- Room code uniqueness and security
-- Rate limiting for room creation/joining
-- Input validation for room codes
-- WebSocket connection authentication
-- User role verification
-- API key protection
+   - Multiple users with different languages
+   - Language switching during session
+   - Translation performance under load
+   - Cache effectiveness
+   - Error handling
 
 Future Enhancements:
 -------------------
-- Host authentication system
-- Persistent room history
-- Custom room settings
-- Multiple hosts per room
-- Recording capabilities
-- Chat functionality between participants
-- Custom branding options
-- Room templates
-- Waiting room functionality
-- Room moderation tools
+- Translation memory for repeated phrases
+- Automatic language detection
+- Custom translation dictionaries
+- Translation quality feedback
+- Fallback language options
+- Translation conflict resolution
+- Language-specific formatting
+- Regional language variants
+- Translation performance analytics
+
+Security Considerations:
+----------------------
+- Validate language selections
+- Rate limit language changes
+- Protect against API abuse
+- Ensure proper message routing
+- Validate translation requests
+
+Known Limitations to Address:
+---------------------------
+- Translation API rate limits
+- Language support limitations
+- Translation latency
+- Resource usage for multiple translations
+- Cache size management

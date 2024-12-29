@@ -6,12 +6,15 @@ from fastapi import WebSocket
 import asyncio
 import queue
 import threading
+from datetime import datetime
 
 from tools.text_translation import translate
 
 class RealTimeTranscriber:
-    def __init__(self, websocket: WebSocket, sample_rate=16_000):
+    def __init__(self, websocket: WebSocket, room_code: str, connection_manager, sample_rate=16_000):
         self.websocket = websocket
+        self.room_code = room_code
+        self.connection_manager = connection_manager
         self.sample_rate = sample_rate
         self._initialize_api()
         self.audio_queue = queue.Queue()
@@ -26,13 +29,19 @@ class RealTimeTranscriber:
         if not aai.settings.api_key:
             raise ValueError("ASSEMBLYAI_API_KEY not found in environment variables")
 
-    async def _send_message(self, message_type: str, text: str):
-        """Helper method to send messages through websocket."""
+    async def _send_message(self, message_type: str, text: str, additional_data: dict = None):
+        """Helper method to broadcast messages to all room members."""
         try:
-            await self.websocket.send_json({
+            message = {
                 "type": message_type,
-                "text": text
-            })
+                "text": text,
+                "timestamp": datetime.now().isoformat()
+            }
+            if additional_data:
+                message.update(additional_data)
+                
+            # Broadcast to all users in the room
+            await self.connection_manager.broadcast_to_room(self.room_code, message)
         except Exception as e:
             print(f"Error sending message: {e}")
 
@@ -41,7 +50,6 @@ class RealTimeTranscriber:
         if not transcript.text:
             return
 
-        # Use run_coroutine_threadsafe instead of create_task
         asyncio.run_coroutine_threadsafe(
             self._handle_transcript(transcript), 
             self.loop
@@ -52,24 +60,45 @@ class RealTimeTranscriber:
         try:
             if isinstance(transcript, aai.RealtimeFinalTranscript):
                 # Send final transcript
-                await self._send_message("final", transcript.text)
+                await self._send_message(
+                    "final",
+                    transcript.text,
+                    {"confidence": transcript.confidence}
+                )
                 
                 try:
                     # Get and send translation
                     translation = await translate(transcript.text, language="Afrikaans")
                     if translation:
-                        await self._send_message("translation", translation)
+                        await self._send_message(
+                            "translation",
+                            translation,
+                            {"original_text": transcript.text}
+                        )
                     else:
-                        await self._send_message("error", "Translation failed: No response received")
+                        await self._send_message(
+                            "error",
+                            "Translation failed: No response received"
+                        )
                 except Exception as e:
                     print(f"Translation error: {e}")
-                    await self._send_message("error", f"Translation error: {str(e)}")
+                    await self._send_message(
+                        "error",
+                        f"Translation error: {str(e)}"
+                    )
             else:
                 # Send partial transcript
-                await self._send_message("partial", transcript.text)
+                await self._send_message(
+                    "partial",
+                    transcript.text,
+                    {"is_final": False}
+                )
         except Exception as e:
             print(f"Error handling transcript: {e}")
-            await self._send_message("error", f"Transcript handling error: {str(e)}")
+            await self._send_message(
+                "error",
+                f"Transcript handling error: {str(e)}"
+            )
 
     def _on_error(self, error: aai.RealtimeError):
         """Callback when an error occurs."""
@@ -93,6 +122,7 @@ class RealTimeTranscriber:
             # Start the audio processing thread
             self.process_thread = threading.Thread(target=self._process_audio_queue)
             self.process_thread.start()
+            await self._send_message("status", "Connected to transcription service")
         except Exception as e:
             print(f"Error connecting to AssemblyAI: {e}")
             await self._send_message("error", f"Connection error: {str(e)}")
@@ -124,5 +154,9 @@ class RealTimeTranscriber:
             self.transcriber.close()
             if hasattr(self, 'process_thread'):
                 self.process_thread.join()
+            asyncio.run_coroutine_threadsafe(
+                self._send_message("status", "Transcription service disconnected"),
+                self.loop
+            )
         except Exception as e:
             print(f"Error while closing transcriber: {e}")
