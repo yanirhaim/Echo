@@ -1,0 +1,13 @@
+Echo/
+├── .env                    # Environment variables for API keys
+├── requirements.txt        # Project dependencies
+├── main.py                # FastAPI application entry point
+├── static/                # Static files directory
+│   ├── script.js          # Main frontend JavaScript
+│   └── audio-processor.worklet.js  # AudioWorklet processor
+├── templates/             # Templates directory
+│   └── index.html        # Main HTML template
+└── tools/                # Python modules directory
+    ├── __init__.py       # Makes tools a Python package
+    ├── real_time_transcript.py  # Handles transcription
+    └── text_translation.py      # Handles translation
